@@ -168,6 +168,7 @@ https://self-learning-java-tutorial.blogspot.com/2020/11/spring-batch-job-with-m
 https://www.baeldung.com/spring-batch-tasklet-chunk - discusses data sharing between steps
 https://www.tutorialsbuddy.com/spring-batch-with-mysql-example - JPA Item reader and item writer example
 https://www.yawintutor.com/spring-boot-batch-read-from-database-and-write-to-database-example/ - read and write to database using JDBC queries.
+https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
 
 
 
