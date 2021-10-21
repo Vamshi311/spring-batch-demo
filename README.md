@@ -184,6 +184,9 @@ itemWriter.write(processedItems);
 Transaction scope in chunk-oriented processing includes reading chunk, processing chunk and writing the chunk.
 Transaction scope in tasklet is  single call to execute() method.
 
+### Sharing data between the steps
+If the data is small then the data can be saved in execution context. Otherwise, use a temporary table or file to share the data with other steps.
+
 
 ### Important topics
 1. Parallel processing
@@ -197,7 +200,7 @@ Transaction scope in tasklet is  single call to execute() method.
 * https://www.yawintutor.com/spring-boot-batch-read-from-database-and-write-to-database-example/ - read and write to database using JDBC queries.
 * https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
 * https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
-
+* https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read()
 
 
 
