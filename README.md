@@ -232,6 +232,62 @@ job execution started for job with name=linesJob and parameters={run.id=6}
 * Refer com.example.springbatchdemo.config.JobConfig class for customizing different spring batch job beans like JobExplorer, JobRepository, ExecutionContextSerializer (for saving entities to ExecutionContext), JobRegistryBeanPostProcessor (to register all jobs with jobRegistry so that we can use JobOperator to start/stop/restart jobs)
 * It is always better to save objects in string or JSON format  to execution context using ObjectMapper and convert them to Objects again using ObjectMapper after reading from ExecutionContext.
 
+### JobExecutionListener and StepExecutionListener
+We can extend JobExecutionListenerSupport class to intercept after job execution calls. If we have any logic to execute after job execution we can implement there.
+Example:
+```
+@Component
+@Slf4j
+public class JobCompletionNotificationListener extends JobExecutionListenerSupport {
+
+	@Override
+	public void afterJob(JobExecution jobExecution) {
+		if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
+			log.info("!!! JOB FINISHED! Time to verify the results");
+
+		}
+	}
+}
+```
+Similary, we can implement StepExecutionListener interface to intercept before step and after step execution calls.
+Example:
+```
+@Slf4j
+@Component
+public class LinesReader implements Tasklet, StepExecutionListener {
+
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	private List<Line> lines = new ArrayList<Line>();
+
+	@Override
+	public void beforeStep(StepExecution stepExecution) {
+		log.info("Lines Reader initialized");
+	}
+
+	@Override
+	public ExitStatus afterStep(StepExecution stepExecution) {
+		try {
+			stepExecution.getJobExecution().getExecutionContext().put("lines", objectMapper.writeValueAsString(lines));
+		} catch (JsonProcessingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		log.info("Lines Reader ended");
+		return ExitStatus.COMPLETED;
+	}
+
+	@Override
+	public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+		lines = DataUtils.getLines();
+		log.info("Line Reader retrieved lines");
+		return RepeatStatus.FINISHED;
+	}
+
+}
+```
+
 ### Important topics
 1. Parallel processing
 2. Scaling
