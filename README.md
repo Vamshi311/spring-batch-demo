@@ -187,6 +187,50 @@ Transaction scope in tasklet is  single call to execute() method.
 ### Sharing data between the steps
 If the data is small then the data can be saved in execution context. Otherwise, use a temporary table or file to share the data with other steps.
 
+### JobExplorer
+Use JobExplorer to query the Job repository for job instances/job executions for specific job name.
+
+```
+@PreDestroy
+public void destroy() throws Exception {
+    jobExplorer.getJobNames().forEach(name -> log.info("job name: {}", name));
+    jobExplorer.getJobInstances("linesJob", 0, jobExplorer.getJobInstanceCount("linesJob")).forEach(jobInstance -> {
+        log.info("job instance id {}", jobInstance.getInstanceId());
+    });
+}
+
+```
+### JobOperator
+JobOperator is needed to start a job with new instance or to resume previous execution of job instance.
+
+```
+@Scheduled(fixedRate = 5000000)
+public void run() throws Exception {
+    JobInstance lastJobInstance = jobExplorer.getLastJobInstance("linesJob");
+    if (lastJobInstance == null) {
+        jobLauncher.run(linesJob, new JobParameters());
+    } else {
+
+        JobExecution lastJobExecution = jobExplorer.getLastJobExecution(lastJobInstance);
+        if (lastJobExecution != null && lastJobExecution.getStatus() == BatchStatus.FAILED) {
+            operator.restart(lastJobExecution.getId());
+        } else {
+            operator.startNextInstance("linesJob");
+        }
+    }
+}
+
+```
+
+
+### Note
+* If we run the job with same job parameters then same job instance will be picked. If previous execution for that instance is successful then in current execution, no action will happen at each step. 
+* To re-run the job with new instance, we need to execute job with new distinct parameters.
+* Attaching RunIdIncrementer to job results in adding “run.id” parameter with incremented value to the job before launching a new instance.
+Example:
+job execution started for job with name=linesJob and parameters={run.id=6}
+* Refer com.example.springbatchdemo.config.JobConfig class for customizing different spring batch job beans like JobExplorer, JobRepository, ExecutionContextSerializer (for saving entities to ExecutionContext), JobRegistryBeanPostProcessor (to register all jobs with jobRegistry so that we can use JobOperator to start/stop/restart jobs)
+* It is always better to save objects in string or JSON format  to execution context using ObjectMapper and convert them to Objects again using ObjectMapper after reading from ExecutionContext.
 
 ### Important topics
 1. Parallel processing
@@ -201,6 +245,3 @@ If the data is small then the data can be saved in execution context. Otherwise,
 * https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
 * https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
 * https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read()
-
-
-
