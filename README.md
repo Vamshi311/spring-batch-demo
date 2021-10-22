@@ -300,4 +300,4 @@ public class LinesReader implements Tasklet, StepExecutionListener {
 * https://www.yawintutor.com/spring-boot-batch-read-from-database-and-write-to-database-example/ - read and write to database using JDBC queries.
 * https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
 * https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
-* https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read()
+* https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read(). I cloned this git repository.
