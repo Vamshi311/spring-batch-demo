@@ -158,17 +158,49 @@ return jobs.get("demoJob")
 
 ```
 
+Psuedo code that explains the processing inside the step of batch job.
+
+```
+List items = new Arraylist();
+for(int i = 0; i < commitInterval; i++){
+    Object item = itemReader.read();
+    if (item != null) {
+        items.add(item);
+    }
+}
+
+List processedItems = new Arraylist();
+for(Object item: items){
+    Object processedItem = itemProcessor.process(item);
+    if (processedItem != null) {
+        processedItems.add(processedItem);
+    }
+}
+
+itemWriter.write(processedItems);
+```
+
+### Transaction scope
+Transaction scope in chunk-oriented processing includes reading chunk, processing chunk and writing the chunk.
+Transaction scope in tasklet is  single call to execute() method.
+
+### Sharing data between the steps
+If the data is small then the data can be saved in execution context. Otherwise, use a temporary table or file to share the data with other steps.
+
+
 ### Important topics
 1. Parallel processing
 2. Scaling
 
 ### References
-https://www.toptal.com/spring/spring-batch-tutorial
-https://self-learning-java-tutorial.blogspot.com/2020/11/spring-batch-job-with-multiple-steps.html
-https://www.baeldung.com/spring-batch-tasklet-chunk - discusses data sharing between steps
-https://www.tutorialsbuddy.com/spring-batch-with-mysql-example - JPA Item reader and item writer example
-https://www.yawintutor.com/spring-boot-batch-read-from-database-and-write-to-database-example/ - read and write to database using JDBC queries.
-
+* https://www.toptal.com/spring/spring-batch-tutorial
+* https://self-learning-java-tutorial.blogspot.com/2020/11/spring-batch-job-with-multiple-steps.html
+* https://www.baeldung.com/spring-batch-tasklet-chunk - discusses data sharing between steps
+* https://www.tutorialsbuddy.com/spring-batch-with-mysql-example - JPA Item reader and item writer example
+* https://www.yawintutor.com/spring-boot-batch-read-from-database-and-write-to-database-example/ - read and write to database using JDBC queries.
+* https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
+* https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
+* https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read()
 
 
 
