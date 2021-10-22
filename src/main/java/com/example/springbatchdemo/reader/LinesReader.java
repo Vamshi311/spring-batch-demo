@@ -10,16 +10,22 @@ import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.example.springbatchdemo.model.Line;
 import com.example.springbatchdemo.util.DataUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
 public class LinesReader implements Tasklet, StepExecutionListener {
+
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	private List<Line> lines = new ArrayList<Line>();
 
@@ -30,7 +36,12 @@ public class LinesReader implements Tasklet, StepExecutionListener {
 
 	@Override
 	public ExitStatus afterStep(StepExecution stepExecution) {
-		stepExecution.getJobExecution().getExecutionContext().put("lines", lines);
+		try {
+			stepExecution.getJobExecution().getExecutionContext().put("lines", objectMapper.writeValueAsString(lines));
+		} catch (JsonProcessingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		log.info("Lines Reader ended");
 		return ExitStatus.COMPLETED;
 	}

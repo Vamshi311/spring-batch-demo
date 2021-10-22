@@ -9,9 +9,14 @@ import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.example.springbatchdemo.model.Line;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,11 +24,23 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class LinesWriter implements Tasklet, StepExecutionListener {
 
+	@Autowired
+	private ObjectMapper objectMapper;
 	private List<Line> lines;
 
 	@Override
 	public void beforeStep(StepExecution stepExecution) {
-		lines = (List<Line>) stepExecution.getJobExecution().getExecutionContext().get("lines");
+		String linesValue = (String) stepExecution.getJobExecution().getExecutionContext().get("lines");
+		try {
+			lines = objectMapper.readValue(linesValue, new TypeReference<List<Line>>() {
+			});
+		} catch (JsonMappingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JsonProcessingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		log.info("Lines writer initialized");
 
 	}

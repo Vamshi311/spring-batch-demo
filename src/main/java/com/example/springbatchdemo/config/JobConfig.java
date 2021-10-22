@@ -1,22 +1,36 @@
 package com.example.springbatchdemo.config;
 
+import java.net.MalformedURLException;
 import java.time.format.DateTimeFormatter;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.JobRegistry;
+import org.springframework.batch.core.configuration.annotation.DefaultBatchConfigurer;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.configuration.support.JobRegistryBeanPostProcessor;
+import org.springframework.batch.core.explore.JobExplorer;
+import org.springframework.batch.core.explore.support.JobExplorerFactoryBean;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.repository.ExecutionContextSerializer;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.repository.dao.Jackson2ExecutionContextStringSerializer;
+import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.support.DatabaseType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.DataSourceInitializer;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
+import com.example.springbatchdemo.model.Line;
 import com.example.springbatchdemo.processor.LinesProcessor;
 import com.example.springbatchdemo.reader.LinesReader;
 import com.example.springbatchdemo.writer.LinesWriter;
@@ -29,8 +43,9 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import lombok.extern.slf4j.Slf4j;
 
 @Configuration
+@EnableBatchProcessing
 @Slf4j
-public class JobConfig {
+public class JobConfig extends DefaultBatchConfigurer {
 
 	public static final String DATETIME_FORMAT = "dd-MM-yyyy HH:mm";
 	public static LocalDateTimeSerializer LOCAL_DATETIME_SERIALIZER = new LocalDateTimeSerializer(
@@ -39,6 +54,8 @@ public class JobConfig {
 	public static final String DATE_FORMAT = "dd-MM-yyyy";
 	public static LocalDateSerializer LOCAL_DATE_SERIALIZER = new LocalDateSerializer(
 			DateTimeFormatter.ofPattern(DATE_FORMAT));
+
+	ExecutionContext executionContext = new ExecutionContext();
 
 	@Autowired
 	private LinesReader linesReader;
@@ -56,7 +73,13 @@ public class JobConfig {
 	private StepBuilderFactory stepBuilderFactory;
 
 	@Autowired
-	private JobLauncher jobLauncher;
+	private DataSource dataSource;
+
+	@Autowired
+	private JobRegistry jobRegistry;
+
+//	@Autowired
+//	private JobLauncher jobLauncher;
 
 	@Bean
 	public Step lineReaderTask() {
@@ -76,20 +99,12 @@ public class JobConfig {
 	@Bean
 	public Job linesJob() {
 		return jobBuilderFactory.get("linesJob").incrementer(new RunIdIncrementer()).start(lineReaderTask())
-				.next(lineProcessorTask()).next(lineWriterTask()).build();
+				.next(lineProcessorTask())
+				.next(lineWriterTask()).build();
 	}
 
-	@Scheduled(fixedRate = 5000000)
-	public void run() throws Exception {
-		JobParameters params = new JobParametersBuilder().addString("JobID", String.valueOf(System.currentTimeMillis()))
-				.toJobParameters();
-		JobExecution execution = jobLauncher.run(linesJob(),
-				params);
-		log.info("Exit status: {}", execution.getStatus());
-	}
-
-	// Not sure why below object mapper is not picked while saving job data to job
-	// repository. So created custom serializer and used it for line#dob.
+	// We need to set this objectMapper to Jackson2ExecutionContextStringSerializer
+	// to safely serialize LocalDate etc to execution context in job Repository.
 	@Bean
 	@Primary
 	public ObjectMapper objectMapper() {
@@ -98,6 +113,7 @@ public class JobConfig {
 		module.addSerializer(LOCAL_DATE_SERIALIZER);
 		ObjectMapper objectMapper = new ObjectMapper();
 		objectMapper.registerModule(module);
+		objectMapper.findAndRegisterModules();
 		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 		return objectMapper;
 	}
@@ -132,4 +148,56 @@ public class JobConfig {
 //	        jobLauncher.setJobRepository(jobRepository());
 //	        return jobLauncher;
 //	    }
+
+	@Bean
+	public ExecutionContextSerializer customSerializer() {
+		Jackson2ExecutionContextStringSerializer jackson2ExecutionContextStringSerializer = new Jackson2ExecutionContextStringSerializer(
+				Line.class.getName());
+		jackson2ExecutionContextStringSerializer.setObjectMapper(objectMapper());
+		return jackson2ExecutionContextStringSerializer;
+	}
+
+	@Override
+	public JobRepository createJobRepository() throws Exception {
+
+		JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+		factory.setDataSource(dataSource);
+		factory.setDatabaseType(DatabaseType.MYSQL.getProductName());
+		factory.setTransactionManager(getTransactionManager());
+		factory.setSerializer(customSerializer());
+		factory.setTablePrefix("BATCH_");
+		factory.setJdbcOperations(new JdbcTemplate(dataSource));
+		return (JobRepository) factory.getObject();
+	}
+
+	@Bean
+	public DataSourceInitializer dataSourceInitializer() throws MalformedURLException {
+		ResourceDatabasePopulator databasePopulator = new ResourceDatabasePopulator();
+
+		databasePopulator.setIgnoreFailedDrops(true);
+
+		DataSourceInitializer initializer = new DataSourceInitializer();
+		initializer.setDataSource(dataSource);
+		initializer.setDatabasePopulator(databasePopulator);
+		return initializer;
+	}
+
+	@Override
+	public JobExplorer createJobExplorer() throws Exception {
+		JobExplorerFactoryBean factoryBean = new JobExplorerFactoryBean();
+		factoryBean.setDataSource(dataSource);
+		factoryBean.setJdbcOperations(new JdbcTemplate(dataSource));
+		factoryBean.setSerializer(customSerializer());
+		factoryBean.setTablePrefix("BATCH_");
+		return factoryBean.getObject();
+	}
+
+	// This is need to register all jobs as they are created. Once registered, we
+	// can start jobs using JobOperator
+	@Bean
+	public JobRegistryBeanPostProcessor jobRegistryBeanPostProcessor() {
+		JobRegistryBeanPostProcessor postProcessor = new JobRegistryBeanPostProcessor();
+		postProcessor.setJobRegistry(jobRegistry);
+		return postProcessor;
+	}
 }
