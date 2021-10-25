@@ -288,6 +288,129 @@ public class LinesReader implements Tasklet, StepExecutionListener {
 }
 ```
 
+### ItemReader vs ItemWriter vs ItemStream
+Both ItemReaders and ItemWriters serve their individual purposes well, but there is a common concern among both of them that necessitates another interface. In general, as part of the scope of a batch job, readers and writers need to be opened, closed, and require a mechanism for persisting state. The ItemStream interface serves that purpose, as shown in the following example:
+
+```
+public interface ItemStream {
+
+    void open(ExecutionContext executionContext) throws ItemStreamException;
+
+    void update(ExecutionContext executionContext) throws ItemStreamException;
+
+    void close() throws ItemStreamException;
+}
+```
+
+Clients of an ItemReader that also implement ItemStream should call open before any calls to read, in order to open any resources such as files or to obtain connections. A similar restriction applies to an ItemWriter that implements ItemStream. As mentioned in Chapter 2, if expected data is found in the ExecutionContext, it may be used to start the ItemReader or ItemWriter at a location other than its initial state. Conversely, close is called to ensure that any resources allocated during open are released safely. update is called primarily to ensure that any state currently being held is loaded into the provided ExecutionContext. This method is called before committing, to ensure that the current state is persisted in the database before commit.
+In the special case where the client of an ItemStream is a Step (from the Spring Batch Core), an ExecutionContext is created for each StepExecution to allow users to store the state of a particular execution, with the expectation that it is returned if the same JobInstance is started again. 
+
+So if you want your custom reader or writer to be stateful, your reader/writer should implement ItemStream interface too.
+The client of the writer needs to be aware of the ItemStream, so you may need to register it as a stream in the configuration. For example, in step configuration, we need to register streams in that step.
+Example:
+```
+Bean
+public Step step1() {
+	return this.stepBuilderFactory.get("step1")
+				.<String, String>chunk(2)
+				.reader(fooReader())
+				.processor(fooProcessor())
+				.writer(compositeItemWriter())
+				.stream(barWriter())
+				.build();
+}
+
+@Bean
+public CustomCompositeItemWriter compositeItemWriter() {
+
+	CustomCompositeItemWriter writer = new CustomCompositeItemWriter();
+
+	writer.setDelegate(barWriter());
+
+	return writer;
+}
+
+@Bean
+public BarWriter barWriter() {
+	return new BarWriter();
+}
+```
+### CompositeItemReader that delegates read to multiple item readers
+
+```
+class MyItemReader<T> implements ItemReader<T>, ItemStream {
+  private ItemReader[] delegates;
+  private int delegateIndex;
+  private ItemReader<T> currentDelegate;
+  private ExecutionContext stepExecutionContext;
+
+  public void setDelegates(ItemReader[] delegates) {
+    this.delegates = delegates;
+  }
+
+  @BeforeStep
+  private void beforeStep(StepExecution stepExecution) {
+    this.stepExecutionContext = stepExecution.getExecutionContext();
+  }
+
+  public T read() {
+    T item = null;
+    if(null != currentDelegate) {
+      item = currentDelegate.read();
+      if(null == item) {
+        ((ItemStream)this.currentDelegate).close();
+        this.currentDelegate = null;
+      }
+    }
+    // Move to next delegate if previous was exhausted!
+    if(null == item && this.delegateIndex< this.delegates.length) {
+      this.currentDelegate = this.delegates[this.currentIndex++];
+      ((ItemStream)this.currentDelegate).open(this.stepExecutionContext);
+      update(this.stepExecutionContext);
+      // Recurse to read() to simulate loop through delegates
+      item = read();
+    }
+    return item;
+  }
+
+  public void open(ExecutionContext ctx) {
+    // During open restore last active reader and restore its state
+    if(ctx.containsKey("index")) {
+      this.delegateIndex = ctx.getInt("index");
+      this.currentDelegate = this.delegates[this.delegateIndex];
+      ((ItemStream)this.currentDelegate ).open(ctx);
+    }
+  }
+
+  public void update(ExecutionContext ctx) {
+    // Update current delegate index and state
+    ctx.putInt("index", this.delegateIndex);
+    if(null != this.currentDelegate) {
+      ((ItemStream)this.currentDelegate).update(ctx);
+    }
+  }
+
+  public void close(ExecutionContext ctx) {
+    if(null != this.currentDelegate) {
+      ((ItemStream)this.currentDelegate).close();
+  }
+}
+<bean id="myItemReader" class=path.to.MyItemReader>
+  <property name="delegates">
+    <array>
+      <ref bean="itemReader1"/>
+      <ref bean="itemReader2"/>
+      <ref bean="itemReader3"/>
+    </array>
+  </property>
+</bean>
+
+<bean id="itemReader1" class="JdbcCursorItemReader">
+  <property name="name" value="itemReader1" />
+  <!-- Set other properties -->
+</bean>
+```
+
 ### Important topics
 1. Parallel processing
 2. Scaling
@@ -301,3 +424,4 @@ public class LinesReader implements Tasklet, StepExecutionListener {
 * https://www.petrikainulainen.net/programming/spring-framework/spring-batch-tutorial-writing-information-to-a-database-with-jdbc/ - writing data to database.
 * https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
 * https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read(). I cloned this git repository.
+* https://coderedirect.com/questions/136895/spring-batch-job-read-from-multiple-sources - CompositeItemReader that delegates reads to multiple item readers.
