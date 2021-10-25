@@ -305,8 +305,10 @@ public interface ItemStream {
 Clients of an ItemReader that also implement ItemStream should call open before any calls to read, in order to open any resources such as files or to obtain connections. A similar restriction applies to an ItemWriter that implements ItemStream. As mentioned in Chapter 2, if expected data is found in the ExecutionContext, it may be used to start the ItemReader or ItemWriter at a location other than its initial state. Conversely, close is called to ensure that any resources allocated during open are released safely. update is called primarily to ensure that any state currently being held is loaded into the provided ExecutionContext. This method is called before committing, to ensure that the current state is persisted in the database before commit.
 In the special case where the client of an ItemStream is a Step (from the Spring Batch Core), an ExecutionContext is created for each StepExecution to allow users to store the state of a particular execution, with the expectation that it is returned if the same JobInstance is started again. 
 
-So if you want your custom reader or writer to be stateful, your reader/writer should implement ItemStream interface too.
+So, if you want your custom reader or writer to be stateful, your reader/writer should implement ItemStream interface too.When reader/writer is stateful then it can pick up where it left in previous run.
+
 The client of the writer needs to be aware of the ItemStream, so you may need to register it as a stream in the configuration. For example, in step configuration, we need to register streams in that step.
+
 Example:
 ```
 Bean
