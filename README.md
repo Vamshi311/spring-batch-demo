@@ -427,3 +427,4 @@ class MyItemReader<T> implements ItemReader<T>, ItemStream {
 * https://docs.spring.io/spring-batch/docs/current/reference/html/step.html - provides psuedo code for better understanding of step in batch job.
 * https://dzone.com/articles/a-composite-reader-for-batch-processing - custom reader that provides capability to process page data before being sent to ItemReader.read(). I cloned this git repository.
 * https://coderedirect.com/questions/136895/spring-batch-job-read-from-multiple-sources - CompositeItemReader that delegates reads to multiple item readers.
+* https://www.desynit.com/dev-zone/java/list-merging-in-spring-batch/ - To read data from two data sources. Data from first source will be enhanced by data fom second source.
