@@ -417,6 +417,17 @@ class MyItemReader<T> implements ItemReader<T>, ItemStream {
 1. Parallel processing
 2. Scaling
 
+### Download Different JAVA Versions
+Add below code to build.gradle and refresh gradle. Gradle will download that JAVA version in .gradle folder.
+
+```
+java {
+	toolchain {
+		languageVersion.set(JavaLanguageVersion.of(17))
+	}
+}
+```
+
 ### References
 * https://www.toptal.com/spring/spring-batch-tutorial
 * https://self-learning-java-tutorial.blogspot.com/2020/11/spring-batch-job-with-multiple-steps.html
